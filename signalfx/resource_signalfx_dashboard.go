@@ -458,10 +458,11 @@ func dashboardResource() *schema.Resource {
 			},
 		},
 
-		Create: dashboardCreate,
-		Read:   dashboardRead,
-		Update: dashboardUpdate,
-		Delete: dashboardDelete,
+		CustomizeDiff: dashboardValidate,
+		Create:        dashboardCreate,
+		Read:          dashboardRead,
+		Update:        dashboardUpdate,
+		Delete:        dashboardDelete,
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
 		},
@@ -471,7 +472,7 @@ func dashboardResource() *schema.Resource {
 /*
 Use Resource object to construct json payload in order to create a dashboard
 */
-func getPayloadDashboard(d *schema.ResourceData) (*dashboard.CreateUpdateDashboardRequest, error) {
+func getPayloadDashboard(d ResourceDataAccess) (*dashboard.CreateUpdateDashboardRequest, error) {
 
 	cudr := &dashboard.CreateUpdateDashboardRequest{
 		Name:              d.Get("name").(string),
@@ -569,7 +570,7 @@ func getPayloadDashboard(d *schema.ResourceData) (*dashboard.CreateUpdateDashboa
 	return cudr, nil
 }
 
-func getDashPermissions(d *schema.ResourceData) *dashboard.ObjectPermissions {
+func getDashPermissions(d ResourceDataAccess) *dashboard.ObjectPermissions {
 	permissions := &dashboard.ObjectPermissions{}
 	if val, ok := d.GetOk("permissions"); ok {
 		p := val.([]interface{})[0].(map[string]interface{})
@@ -600,7 +601,7 @@ func getDashPermissionsAcl(set *schema.Set) []*dashboard.AclEntry {
 	return nil
 }
 
-func getDashboardTime(d *schema.ResourceData) *dashboard.ChartsFiltersTime {
+func getDashboardTime(d ResourceDataAccess) *dashboard.ChartsFiltersTime {
 	var timeFilter *dashboard.ChartsFiltersTime
 	if val, ok := d.GetOk("time_range"); ok {
 		timeFilter = &dashboard.ChartsFiltersTime{
@@ -620,7 +621,7 @@ func getDashboardTime(d *schema.ResourceData) *dashboard.ChartsFiltersTime {
 	return timeFilter
 }
 
-func getDashboardCharts(d *schema.ResourceData) []*dashboard.DashboardChart {
+func getDashboardCharts(d ResourceDataAccess) []*dashboard.DashboardChart {
 	charts := d.Get("chart").(*schema.Set).List()
 	chartsList := make([]*dashboard.DashboardChart, len(charts))
 	for i, chart := range charts {
@@ -638,7 +639,7 @@ func getDashboardCharts(d *schema.ResourceData) []*dashboard.DashboardChart {
 	return chartsList
 }
 
-func getDashboardColumns(d *schema.ResourceData) []*dashboard.DashboardChart {
+func getDashboardColumns(d ResourceDataAccess) []*dashboard.DashboardChart {
 	columns := d.Get("column").([]interface{})
 	charts := make([]*dashboard.DashboardChart, 0)
 	for _, column := range columns {
@@ -662,7 +663,7 @@ func getDashboardColumns(d *schema.ResourceData) []*dashboard.DashboardChart {
 	return charts
 }
 
-func getDashboardGrids(d *schema.ResourceData) []*dashboard.DashboardChart {
+func getDashboardGrids(d ResourceDataAccess) []*dashboard.DashboardChart {
 	grids := d.Get("grid").([]interface{})
 	charts := make([]*dashboard.DashboardChart, 0)
 	// We must keep track of the row outside the loop as there might be many
@@ -694,7 +695,7 @@ func getDashboardGrids(d *schema.ResourceData) []*dashboard.DashboardChart {
 	return charts
 }
 
-func getDashboardVariables(d *schema.ResourceData) []*dashboard.ChartsWebUiFilter {
+func getDashboardVariables(d ResourceDataAccess) []*dashboard.ChartsWebUiFilter {
 	variables := d.Get("variable").(*schema.Set).List()
 	varsList := make([]*dashboard.ChartsWebUiFilter, len(variables))
 	for i, variable := range variables {
@@ -787,7 +788,7 @@ func getDashboardEventOverlayFilters(sources []interface{}) []*dashboard.EventOv
 	return sourcesList
 }
 
-func getDashboardFilters(d *schema.ResourceData) []*dashboard.ChartsSingleFilter {
+func getDashboardFilters(d ResourceDataAccess) []*dashboard.ChartsSingleFilter {
 	filters := d.Get("filter").(*schema.Set).List()
 	filterList := make([]*dashboard.ChartsSingleFilter, len(filters))
 	for i, filter := range filters {
@@ -812,6 +813,20 @@ func getDashboardFilters(d *schema.ResourceData) []*dashboard.ChartsSingleFilter
 		filterList[i] = item
 	}
 	return filterList
+}
+
+func dashboardValidate(ctx context.Context, dashboardObject *schema.ResourceDiff, meta any) error {
+	payloadDashboard, err := getPayloadDashboard(dashboardObject)
+
+	if err != nil {
+		return err
+	}
+
+	if config, ok := meta.(*signalfxConfig); ok {
+		return config.Client.ValidateDashboard(ctx, payloadDashboard)
+	} else {
+		return fmt.Errorf("invalid type assertion: expected *signalfxConfig, got %T", meta)
+	}
 }
 
 func dashboardCreate(d *schema.ResourceData, meta interface{}) error {

@@ -504,10 +504,11 @@ func timeChartResource() *schema.Resource {
 			},
 		},
 
-		Create: timechartCreate,
-		Read:   timechartRead,
-		Update: timechartUpdate,
-		Delete: timechartDelete,
+		CustomizeDiff: timechartValidate,
+		Create:        timechartCreate,
+		Read:          timechartRead,
+		Update:        timechartUpdate,
+		Delete:        timechartDelete,
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
 		},
@@ -517,7 +518,7 @@ func timeChartResource() *schema.Resource {
 /*
 Use Resource object to construct json payload in order to create a time chart
 */
-func getPayloadTimeChart(d *schema.ResourceData) *chart.CreateUpdateChartRequest {
+func getPayloadTimeChart(d ResourceDataAccess) (*chart.CreateUpdateChartRequest, error) {
 	var tags []string
 	if val, ok := d.GetOk("tags"); ok {
 		tags := []string{}
@@ -568,10 +569,10 @@ func getPayloadTimeChart(d *schema.ResourceData) *chart.CreateUpdateChartRequest
 	}
 	payload.Options = viz
 
-	return payload
+	return payload, nil
 }
 
-func getPerSignalVizOptions(d *schema.ResourceData, includePaletteIndex bool) []*chart.PublishLabelOptions {
+func getPerSignalVizOptions(d ResourceDataAccess, includePaletteIndex bool) []*chart.PublishLabelOptions {
 	viz := d.Get("viz_options").(*schema.Set).List()
 	vizList := make([]*chart.PublishLabelOptions, len(viz))
 	for i, v := range viz {
@@ -613,7 +614,7 @@ func getPerSignalVizOptions(d *schema.ResourceData, includePaletteIndex bool) []
 	return vizList
 }
 
-func getPerEventOptions(d *schema.ResourceData) []*chart.EventPublishLabelOptions {
+func getPerEventOptions(d ResourceDataAccess) []*chart.EventPublishLabelOptions {
 	eos := d.Get("event_options").(*schema.Set).List()
 	eventList := make([]*chart.EventPublishLabelOptions, len(eos))
 	for i, ev := range eos {
@@ -636,7 +637,7 @@ func getPerEventOptions(d *schema.ResourceData) []*chart.EventPublishLabelOption
 	return eventList
 }
 
-func getAxesOptions(d *schema.ResourceData) []*chart.Axes {
+func getAxesOptions(d ResourceDataAccess) []*chart.Axes {
 	axesListopts := make([]*chart.Axes, 2)
 	if tfAxisOpts, ok := d.GetOk("axis_right"); ok {
 		tfRightAxisOpts := tfAxisOpts.(*schema.Set).List()[0]
@@ -682,7 +683,7 @@ func getSingleAxisOptions(axisOpt map[string]interface{}) *chart.Axes {
 	return axis
 }
 
-func getTimeChartOptions(d *schema.ResourceData) *chart.Options {
+func getTimeChartOptions(d ResourceDataAccess) *chart.Options {
 	options := &chart.Options{
 		Stacked: d.Get("stacked").(bool),
 		Type:    "TimeSeriesChart",
@@ -783,9 +784,16 @@ func getTimeChartOptions(d *schema.ResourceData) *chart.Options {
 	return options
 }
 
+func timechartValidate(ctx context.Context, d *schema.ResourceDiff, meta any) error {
+	return ChartValidatorFunc(getPayloadTimeChart).Validate(ctx, d, meta)
+}
+
 func timechartCreate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*signalfxConfig)
-	payload := getPayloadTimeChart(d)
+	payload, err := getPayloadTimeChart(d)
+	if err != nil {
+		return err
+	}
 
 	payload.Tags = common.Unique(
 		pmeta.LoadProviderTags(context.Background(), meta),
@@ -1117,7 +1125,10 @@ func publishLabelOptionsToMap(options *chart.PublishLabelOptions) (map[string]in
 
 func timechartUpdate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*signalfxConfig)
-	payload := getPayloadTimeChart(d)
+	payload, err := getPayloadTimeChart(d)
+	if err != nil {
+		return err
+	}
 
 	payload.Tags = common.Unique(
 		pmeta.LoadProviderTags(context.Background(), meta),

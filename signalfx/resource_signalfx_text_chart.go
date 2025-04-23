@@ -46,10 +46,11 @@ func textChartResource() *schema.Resource {
 			},
 		},
 
-		Create: textchartCreate,
-		Read:   textchartRead,
-		Update: textchartUpdate,
-		Delete: textchartDelete,
+		CustomizeDiff: textchartValidate,
+		Create:        textchartCreate,
+		Read:          textchartRead,
+		Update:        textchartUpdate,
+		Delete:        textchartDelete,
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
 		},
@@ -59,7 +60,7 @@ func textChartResource() *schema.Resource {
 /*
 Use Resource object to construct json payload in order to create a text chart
 */
-func getPayloadTextChart(d *schema.ResourceData) *chart.CreateUpdateChartRequest {
+func getPayloadTextChart(d ResourceDataAccess) (*chart.CreateUpdateChartRequest, error) {
 	return &chart.CreateUpdateChartRequest{
 		Name:        d.Get("name").(string),
 		Description: d.Get("description").(string),
@@ -68,12 +69,19 @@ func getPayloadTextChart(d *schema.ResourceData) *chart.CreateUpdateChartRequest
 			Markdown: d.Get("markdown").(string),
 		},
 		Tags: convert.SchemaListAll(d.Get("tags"), convert.ToString),
-	}
+	}, nil
+}
+
+func textchartValidate(ctx context.Context, d *schema.ResourceDiff, meta any) error {
+	return ChartValidatorFunc(getPayloadTextChart).Validate(ctx, d, meta)
 }
 
 func textchartCreate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*signalfxConfig)
-	payload := getPayloadTextChart(d)
+	payload, err := getPayloadTextChart(d)
+	if err != nil {
+		return err
+	}
 
 	payload.Tags = common.Unique(
 		pmeta.LoadProviderTags(context.Background(), meta),
@@ -136,7 +144,10 @@ func textchartRead(d *schema.ResourceData, meta interface{}) error {
 
 func textchartUpdate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*signalfxConfig)
-	payload := getPayloadTextChart(d)
+	payload, err := getPayloadTextChart(d)
+	if err != nil {
+		return err
+	}
 
 	payload.Tags = common.Unique(
 		pmeta.LoadProviderTags(context.Background(), meta),

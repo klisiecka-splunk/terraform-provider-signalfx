@@ -180,10 +180,11 @@ func heatmapChartResource() *schema.Resource {
 			},
 		},
 
-		Create: heatmapchartCreate,
-		Read:   heatmapchartRead,
-		Update: heatmapchartUpdate,
-		Delete: heatmapchartDelete,
+		CustomizeDiff: heatmapchartValidate,
+		Create:        heatmapchartCreate,
+		Read:          heatmapchartRead,
+		Update:        heatmapchartUpdate,
+		Delete:        heatmapchartDelete,
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
 		},
@@ -193,7 +194,7 @@ func heatmapChartResource() *schema.Resource {
 /*
 Use Resource object to construct json payload in order to create an Heatmap chart
 */
-func getPayloadHeatmapChart(d *schema.ResourceData) (*chart.CreateUpdateChartRequest, error) {
+func getPayloadHeatmapChart(d ResourceDataAccess) (*chart.CreateUpdateChartRequest, error) {
 	payload := &chart.CreateUpdateChartRequest{
 		Name:        d.Get("name").(string),
 		Description: d.Get("description").(string),
@@ -210,7 +211,7 @@ func getPayloadHeatmapChart(d *schema.ResourceData) (*chart.CreateUpdateChartReq
 	return payload, nil
 }
 
-func getHeatmapColorRangeOptions(d *schema.ResourceData) *chart.HeatmapColorRangeOptions {
+func getHeatmapColorRangeOptions(d ResourceDataAccess) *chart.HeatmapColorRangeOptions {
 	colorRange := d.Get("color_range").(*schema.Set).List()
 
 	var item *chart.HeatmapColorRangeOptions
@@ -239,7 +240,7 @@ func getHeatmapColorRangeOptions(d *schema.ResourceData) *chart.HeatmapColorRang
 	return item
 }
 
-func getHeatmapOptionsChart(d *schema.ResourceData) (*chart.Options, error) {
+func getHeatmapOptionsChart(d ResourceDataAccess) (*chart.Options, error) {
 	options := &chart.Options{
 		Type: "Heatmap",
 	}
@@ -313,6 +314,10 @@ func getHeatmapOptionsChart(d *schema.ResourceData) (*chart.Options, error) {
 	}
 
 	return options, nil
+}
+
+func heatmapchartValidate(ctx context.Context, d *schema.ResourceDiff, meta any) error {
+	return ChartValidatorFunc(getPayloadHeatmapChart).Validate(ctx, d, meta)
 }
 
 func heatmapchartCreate(d *schema.ResourceData, meta interface{}) error {
