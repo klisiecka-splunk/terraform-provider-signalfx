@@ -13,6 +13,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/signalfx/signalfx-go"
 	"github.com/signalfx/signalfx-go/dashboard"
 	"github.com/signalfx/signalfx-go/util"
 	"github.com/splunk-terraform/terraform-provider-signalfx/internal/check"
@@ -22,7 +23,8 @@ import (
 )
 
 const (
-	DashboardAppPath = "/dashboard/"
+	DashboardAppPath             = "/dashboard/"
+	UnknownVisualizationObjectId = "AAAAAAAAAAA"
 )
 
 func dashboardResource() *schema.Resource {
@@ -472,7 +474,7 @@ func dashboardResource() *schema.Resource {
 /*
 Use Resource object to construct json payload in order to create a dashboard
 */
-func getPayloadDashboard(d ResourceDataAccess) (*dashboard.CreateUpdateDashboardRequest, error) {
+func getPayloadDashboard(d ResourceDataAccess, isValidationRequest bool) (*dashboard.CreateUpdateDashboardRequest, error) {
 
 	cudr := &dashboard.CreateUpdateDashboardRequest{
 		Name:              d.Get("name").(string),
@@ -530,10 +532,10 @@ func getPayloadDashboard(d ResourceDataAccess) (*dashboard.CreateUpdateDashboard
 		cudr.SelectedEventOverlays = getDashboardEventOverlays(soverlays)
 	}
 
-	charts := getDashboardCharts(d)
-	columnCharts := getDashboardColumns(d)
+	charts := getDashboardCharts(d, isValidationRequest)
+	columnCharts := getDashboardColumns(d, isValidationRequest)
 	dashboardCharts := append(charts, columnCharts...)
-	gridCharts := getDashboardGrids(d)
+	gridCharts := getDashboardGrids(d, isValidationRequest)
 	dashboardCharts = append(dashboardCharts, gridCharts...)
 	if len(dashboardCharts) > 0 {
 		cudr.Charts = dashboardCharts
@@ -621,25 +623,19 @@ func getDashboardTime(d ResourceDataAccess) *dashboard.ChartsFiltersTime {
 	return timeFilter
 }
 
-func getDashboardCharts(d ResourceDataAccess) []*dashboard.DashboardChart {
+func getDashboardCharts(d ResourceDataAccess, isValidationRequest bool) []*dashboard.DashboardChart {
 	charts := d.Get("chart").(*schema.Set).List()
 	chartsList := make([]*dashboard.DashboardChart, len(charts))
 	for i, chart := range charts {
 		chart := chart.(map[string]interface{})
-		item := &dashboard.DashboardChart{
-			ChartId: chart["chart_id"].(string),
-			Column:  int32(chart["column"].(int)),
-			Height:  int32(chart["height"].(int)),
-			Row:     int32(chart["row"].(int)),
-			Width:   int32(chart["width"].(int)),
-		}
-
+		chartKey := fmt.Sprintf("chart.%d.chart_id", i)
+		item := createDashboardChart(d, isValidationRequest, chartKey, chart["column"].(int), chart["height"].(int), chart["row"].(int), chart["width"].(int))
 		chartsList[i] = item
 	}
 	return chartsList
 }
 
-func getDashboardColumns(d ResourceDataAccess) []*dashboard.DashboardChart {
+func getDashboardColumns(d ResourceDataAccess, isValidationRequest bool) []*dashboard.DashboardChart {
 	columns := d.Get("column").([]interface{})
 	charts := make([]*dashboard.DashboardChart, 0)
 	for _, column := range columns {
@@ -647,14 +643,9 @@ func getDashboardColumns(d ResourceDataAccess) []*dashboard.DashboardChart {
 
 		currentRow := 0
 		columnNumber := column["column"].(int)
-		for _, chartID := range column["chart_ids"].([]interface{}) {
-			item := &dashboard.DashboardChart{
-				ChartId: chartID.(string),
-				Column:  int32(columnNumber),
-				Height:  int32(column["height"].(int)),
-				Row:     int32(currentRow),
-				Width:   int32(column["width"].(int)),
-			}
+		for i := range column["chart_ids"].([]interface{}) {
+			chartKey := fmt.Sprintf("column.%d.chart_ids.%d", columnNumber, i)
+			item := createDashboardChart(d, isValidationRequest, chartKey, columnNumber, column["height"].(int), currentRow, column["width"].(int))
 
 			currentRow += column["height"].(int)
 			charts = append(charts, item)
@@ -663,36 +654,48 @@ func getDashboardColumns(d ResourceDataAccess) []*dashboard.DashboardChart {
 	return charts
 }
 
-func getDashboardGrids(d ResourceDataAccess) []*dashboard.DashboardChart {
+func getDashboardGrids(d ResourceDataAccess, isValidationRequest bool) []*dashboard.DashboardChart {
 	grids := d.Get("grid").([]interface{})
 	charts := make([]*dashboard.DashboardChart, 0)
 	// We must keep track of the row outside the loop as there might be many
 	// grids to draw.
 	currentRow := 0
-	for _, grid := range grids {
+	for i, grid := range grids {
 		grid := grid.(map[string]interface{})
 
 		width := grid["width"].(int)
 		currentColumn := 0
-		for _, chartID := range grid["chart_ids"].([]interface{}) {
+		for j := range grid["chart_ids"].([]interface{}) {
 			if currentColumn+width > 12 {
 				currentRow += grid["height"].(int)
 				currentColumn = 0
 			}
 
-			item := &dashboard.DashboardChart{
-				ChartId: chartID.(string),
-				Column:  int32(currentColumn),
-				Height:  int32(grid["height"].(int)),
-				Row:     int32(currentRow),
-				Width:   int32(grid["width"].(int)),
-			}
+			chartKey := fmt.Sprintf("grid.%d.chart_ids.%d", i, j)
+			item := createDashboardChart(d, isValidationRequest, chartKey, currentColumn, grid["height"].(int), currentRow, grid["width"].(int))
 			currentColumn += width
 			charts = append(charts, item)
 		}
 		currentRow += grid["height"].(int) // Increment the row for the next grid
 	}
 	return charts
+}
+
+func createDashboardChart(d ResourceDataAccess, isValidationRequest bool, chartKey string, column int, height int, row int, width int) *dashboard.DashboardChart {
+	chartID, ok := d.GetOk(chartKey)
+	if !ok && isValidationRequest {
+		chartID = UnknownVisualizationObjectId
+	}
+
+	item := &dashboard.DashboardChart{
+		ChartId: chartID.(string),
+		Column:  int32(column),
+		Height:  int32(height),
+		Row:     int32(row),
+		Width:   int32(width),
+	}
+
+	return item
 }
 
 func getDashboardVariables(d ResourceDataAccess) []*dashboard.ChartsWebUiFilter {
@@ -816,14 +819,19 @@ func getDashboardFilters(d ResourceDataAccess) []*dashboard.ChartsSingleFilter {
 }
 
 func dashboardValidate(ctx context.Context, dashboardObject *schema.ResourceDiff, meta any) error {
-	payloadDashboard, err := getPayloadDashboard(dashboardObject)
+	payloadDashboard, err := getPayloadDashboard(dashboardObject, true)
 
 	if err != nil {
 		return err
 	}
 
+	// nie rozrónia kiedy nie zostało podane, a kiedy reference, ale skoro pole required to zdarzya się tylko przy referencji
+	if payloadDashboard.GroupId == "" { // happens when references not yet existing dadhboard group
+		payloadDashboard.GroupId = UnknownVisualizationObjectId // sprawdzić czy jednak nie null
+	}
+
 	if config, ok := meta.(*signalfxConfig); ok {
-		return config.Client.ValidateDashboard(ctx, payloadDashboard)
+		return config.Client.ValidateDashboardWithMode(ctx, payloadDashboard, signalfx.TERRAFORM)
 	} else {
 		return fmt.Errorf("invalid type assertion: expected *signalfxConfig, got %T", meta)
 	}
@@ -831,7 +839,7 @@ func dashboardValidate(ctx context.Context, dashboardObject *schema.ResourceDiff
 
 func dashboardCreate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*signalfxConfig)
-	payload, err := getPayloadDashboard(d)
+	payload, err := getPayloadDashboard(d, false)
 	if err != nil {
 		return fmt.Errorf("Failed creating json payload: %s", err.Error())
 	}
@@ -1123,7 +1131,7 @@ func dashboardAPIToTF(d *schema.ResourceData, dash *dashboard.Dashboard) error {
 
 func dashboardUpdate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*signalfxConfig)
-	payload, err := getPayloadDashboard(d)
+	payload, err := getPayloadDashboard(d, false)
 	if err != nil {
 		return fmt.Errorf("Failed creating json payload: %s", err.Error())
 	}
