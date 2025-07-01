@@ -230,7 +230,7 @@ func getSingleValueChartOptions(d ResourceDataAccess) *chart.Options {
 		cb := val.(string)
 		options.ColorBy = cb
 		if cb == "Scale" {
-			if colorScaleOptions := getColorScaleOptions(d); len(colorScaleOptions) > 0 {
+			if colorScaleOptions := convert.SchemaListAll(d.Get("color_scale"), convert.ToChartSecondaryVisualization); len(colorScaleOptions) > 0 {
 				options.ColorScale2 = colorScaleOptions
 			}
 

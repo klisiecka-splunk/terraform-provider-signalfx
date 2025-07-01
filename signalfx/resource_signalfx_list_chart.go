@@ -298,7 +298,7 @@ func getListChartOptions(d ResourceDataAccess) (*chart.Options, error) {
 	if val, ok := d.GetOk("color_by"); ok {
 		options.ColorBy = val.(string)
 		if val == "Scale" {
-			if colorScaleOptions := getColorScaleOptions(d); len(colorScaleOptions) > 0 {
+			if colorScaleOptions := convert.SchemaListAll(d.Get("color_scale"), convert.ToChartSecondaryVisualization); len(colorScaleOptions) > 0 {
 				options.ColorScale2 = colorScaleOptions
 			}
 		} else {

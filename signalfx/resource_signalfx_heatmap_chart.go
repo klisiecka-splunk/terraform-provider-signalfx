@@ -308,7 +308,7 @@ func getHeatmapOptionsChart(d ResourceDataAccess) (*chart.Options, error) {
 	if colorRangeOptions := getHeatmapColorRangeOptions(d); colorRangeOptions != nil {
 		options.ColorBy = "Range"
 		options.ColorRange = colorRangeOptions
-	} else if colorScaleOptions := getColorScaleOptions(d); colorScaleOptions != nil && len(colorScaleOptions) > 0 {
+	} else if colorScaleOptions := convert.SchemaListAll(d.Get("color_scale"), convert.ToChartSecondaryVisualization); colorScaleOptions != nil && len(colorScaleOptions) > 0 {
 		options.ColorBy = "Scale"
 		options.ColorScale2 = colorScaleOptions
 	}
