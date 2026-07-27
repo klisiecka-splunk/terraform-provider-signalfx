@@ -35,10 +35,13 @@ func TestResourceEmailTemplateSchema(t *testing.T) {
 	t.Parallel()
 
 	assert.NoError(t, fwtest.ResourceSchemaValidate(NewResourceEmailTemplate(), emailTemplateModel{
-		To:            types.ListNull(types.StringType),
-		Cc:            types.ListNull(types.StringType),
-		Bcc:           types.ListNull(types.StringType),
-		CustomHeaders: types.MapNull(types.StringType),
+		TriggerBody:     types.StringNull(),
+		ResolvedSubject: types.StringNull(),
+		ResolvedBody:    types.StringNull(),
+		To:              types.ListNull(types.StringType),
+		Cc:              types.ListNull(types.StringType),
+		Bcc:             types.ListNull(types.StringType),
+		CustomHeaders:   types.MapNull(types.StringType),
 	}))
 }
 
@@ -91,6 +94,9 @@ func TestResourceEmailTemplateUnitTest(t *testing.T) {
 			assert.Equal(t, "Detector Alert Email Updated", data.Name)
 			assert.Equal(t, []string{"primary@example.com", "secondary@example.com"}, data.To)
 			assert.Equal(t, []string{"team@example.com"}, data.Cc)
+			assert.Empty(t, data.TriggerBody)
+			assert.Empty(t, data.ResolvedSubject)
+			assert.Empty(t, data.ResolvedBody)
 			assert.Empty(t, data.Bcc)
 			assert.Equal(t, map[string]string{"X-Custom-Routing-Key": "detector-alerts-updated"}, data.CustomHeaders)
 
@@ -144,6 +150,9 @@ func TestResourceEmailTemplateUnitTest(t *testing.T) {
 						testresource.TestCheckResourceAttr("signalfx_email_template.test", "id", "template-id"),
 						testresource.TestCheckResourceAttr("signalfx_email_template.test", "name", "Detector Alert Email Updated"),
 						testresource.TestCheckResourceAttr("signalfx_email_template.test", "to.#", "2"),
+						testresource.TestCheckNoResourceAttr("signalfx_email_template.test", "trigger_body"),
+						testresource.TestCheckNoResourceAttr("signalfx_email_template.test", "resolved_subject"),
+						testresource.TestCheckNoResourceAttr("signalfx_email_template.test", "resolved_body"),
 						testresource.TestCheckNoResourceAttr("signalfx_email_template.test", "bcc.#"),
 						testresource.TestCheckResourceAttr("signalfx_email_template.test", "custom_headers.X-Custom-Routing-Key", "detector-alerts-updated"),
 						testresource.TestCheckResourceAttr("signalfx_email_template.test", "updated_by", "updater@example.com"),

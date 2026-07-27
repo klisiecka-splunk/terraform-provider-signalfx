@@ -6,9 +6,11 @@ package fwalert
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/signalfx/signalfx-go/emailtemplate"
 
@@ -67,21 +69,24 @@ func (et *ResourceEmailTemplate) Schema(_ context.Context, _ resource.SchemaRequ
 				Description: "Subject used when a detector alert triggers.",
 			},
 			"trigger_body": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
 				Description: "Body used when a detector alert triggers.",
 			},
 			"resolved_subject": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
 				Description: "Subject used when a detector alert resolves.",
 			},
 			"resolved_body": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
 				Description: "Body used when a detector alert resolves.",
 			},
 			"to": schema.ListAttribute{
 				ElementType: types.StringType,
-				Optional:    true,
+				Required:    true,
 				Description: "Email addresses to include as template recipients.",
+				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
+				},
 			},
 			"cc": schema.ListAttribute{
 				ElementType: types.StringType,
@@ -240,9 +245,9 @@ func (model *emailTemplateModel) updateFromEmailTemplate(ctx context.Context, de
 	model.ID = types.StringValue(details.Id)
 	model.Name = types.StringValue(details.Name)
 	model.TriggerSubject = types.StringValue(details.TriggerSubject)
-	model.TriggerBody = types.StringValue(details.TriggerBody)
-	model.ResolvedSubject = types.StringValue(details.ResolvedSubject)
-	model.ResolvedBody = types.StringValue(details.ResolvedBody)
+	model.TriggerBody = fwshared.OptionalStringValue(details.TriggerBody)
+	model.ResolvedSubject = fwshared.OptionalStringValue(details.ResolvedSubject)
+	model.ResolvedBody = fwshared.OptionalStringValue(details.ResolvedBody)
 	model.CreatedOnMs = types.Int64Value(details.CreatedOnMs)
 	model.CreatedBy = fwshared.OptionalStringValue(details.CreatedBy)
 	model.UpdatedOnMs = types.Int64Value(details.UpdatedOnMs)
