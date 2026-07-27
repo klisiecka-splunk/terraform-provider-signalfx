@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"sync"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -44,12 +43,7 @@ func TestResourceEmailTemplateSchema(t *testing.T) {
 }
 
 func TestResourceEmailTemplateUnitTest(t *testing.T) {
-	t.Parallel()
-
-	var (
-		current emailtemplate.EmailTemplate
-		mu      sync.Mutex
-	)
+	var current emailtemplate.EmailTemplate
 
 	endpoints := map[string]http.Handler{
 		"POST /v2/alert/emailtemplate": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -67,7 +61,7 @@ func TestResourceEmailTemplateUnitTest(t *testing.T) {
 			assert.Equal(t, []string{"primary@example.com"}, data.To)
 			assert.Equal(t, []string{"team@example.com"}, data.Cc)
 			assert.Equal(t, []string{"audit@example.com"}, data.Bcc)
-			assert.Equal(t, map[string]string{"X-SFX-Template": "detector"}, data.CustomHeaders)
+			assert.Equal(t, map[string]string{"X-Custom-Routing-Key": "detector-alerts"}, data.CustomHeaders)
 
 			data.Id = "template-id"
 			data.CreatedOnMs = 1720000000000
@@ -75,9 +69,7 @@ func TestResourceEmailTemplateUnitTest(t *testing.T) {
 			data.UpdatedOnMs = 1720000000000
 			data.UpdatedBy = "creator@example.com"
 
-			mu.Lock()
 			current = data
-			mu.Unlock()
 
 			w.WriteHeader(http.StatusCreated)
 			if err := json.NewEncoder(w).Encode(data); err != nil {
@@ -85,11 +77,7 @@ func TestResourceEmailTemplateUnitTest(t *testing.T) {
 			}
 		}),
 		"GET /v2/alert/emailtemplate/template-id": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			mu.Lock()
-			data := current
-			mu.Unlock()
-
-			if err := json.NewEncoder(w).Encode(data); err != nil {
+			if err := json.NewEncoder(w).Encode(current); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		}),
@@ -104,7 +92,7 @@ func TestResourceEmailTemplateUnitTest(t *testing.T) {
 			assert.Equal(t, []string{"primary@example.com", "secondary@example.com"}, data.To)
 			assert.Equal(t, []string{"team@example.com"}, data.Cc)
 			assert.Empty(t, data.Bcc)
-			assert.Equal(t, map[string]string{"X-SFX-Template": "detector-updated"}, data.CustomHeaders)
+			assert.Equal(t, map[string]string{"X-Custom-Routing-Key": "detector-alerts-updated"}, data.CustomHeaders)
 
 			data.Id = "template-id"
 			data.CreatedOnMs = 1720000000000
@@ -112,9 +100,7 @@ func TestResourceEmailTemplateUnitTest(t *testing.T) {
 			data.UpdatedOnMs = 1720000001000
 			data.UpdatedBy = "updater@example.com"
 
-			mu.Lock()
 			current = data
-			mu.Unlock()
 
 			if err := json.NewEncoder(w).Encode(data); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -148,7 +134,7 @@ func TestResourceEmailTemplateUnitTest(t *testing.T) {
 						testresource.TestCheckResourceAttr("signalfx_email_template.test", "to.0", "primary@example.com"),
 						testresource.TestCheckResourceAttr("signalfx_email_template.test", "cc.0", "team@example.com"),
 						testresource.TestCheckResourceAttr("signalfx_email_template.test", "bcc.0", "audit@example.com"),
-						testresource.TestCheckResourceAttr("signalfx_email_template.test", "custom_headers.X-SFX-Template", "detector"),
+						testresource.TestCheckResourceAttr("signalfx_email_template.test", "custom_headers.X-Custom-Routing-Key", "detector-alerts"),
 						testresource.TestCheckResourceAttr("signalfx_email_template.test", "created_by", "creator@example.com"),
 					),
 				},
@@ -159,7 +145,7 @@ func TestResourceEmailTemplateUnitTest(t *testing.T) {
 						testresource.TestCheckResourceAttr("signalfx_email_template.test", "name", "Detector Alert Email Updated"),
 						testresource.TestCheckResourceAttr("signalfx_email_template.test", "to.#", "2"),
 						testresource.TestCheckNoResourceAttr("signalfx_email_template.test", "bcc.#"),
-						testresource.TestCheckResourceAttr("signalfx_email_template.test", "custom_headers.X-SFX-Template", "detector-updated"),
+						testresource.TestCheckResourceAttr("signalfx_email_template.test", "custom_headers.X-Custom-Routing-Key", "detector-alerts-updated"),
 						testresource.TestCheckResourceAttr("signalfx_email_template.test", "updated_by", "updater@example.com"),
 					),
 				},

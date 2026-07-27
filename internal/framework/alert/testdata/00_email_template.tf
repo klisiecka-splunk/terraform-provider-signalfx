@@ -11,6 +11,6 @@ resource "signalfx_email_template" "test" {
   bcc = ["audit@example.com"]
 
   custom_headers = {
-    X-SFX-Template = "detector"
+    X-Custom-Routing-Key = "detector-alerts"
   }
 }

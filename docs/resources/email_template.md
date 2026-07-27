@@ -6,6 +6,7 @@ description: |-
 # Resource: signalfx_email_template
 
 Email templates are reusable detector alert notification templates.
+The optional `custom_headers` map sends additional email headers with messages that use the template. Use it for headers that your email infrastructure already recognizes, such as routing, classification, or downstream processing headers.
 
 ## Example
 
@@ -22,7 +23,7 @@ resource "signalfx_email_template" "detector_alerts" {
   cc = ["team@example.com"]
 
   custom_headers = {
-    X-SFX-Template = "detector"
+    X-Custom-Routing-Key = "detector-alerts"
   }
 }
 ```

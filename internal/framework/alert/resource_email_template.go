@@ -212,18 +212,24 @@ func (model emailTemplateModel) toEmailTemplate(ctx context.Context) (*emailtemp
 		ResolvedBody:    model.ResolvedBody.ValueString(),
 	}
 
-	if !model.To.IsNull() && !model.To.IsUnknown() {
-		diags.Append(model.To.ElementsAs(ctx, &details.To, false)...)
+	var fieldDiags diag.Diagnostics
+	details.To, fieldDiags = fwshared.StringSliceFromList(ctx, model.To)
+	diags.Append(fieldDiags...)
+	if diags.HasError() {
+		return details, diags
 	}
-	if !model.Cc.IsNull() && !model.Cc.IsUnknown() {
-		diags.Append(model.Cc.ElementsAs(ctx, &details.Cc, false)...)
+	details.Cc, fieldDiags = fwshared.StringSliceFromList(ctx, model.Cc)
+	diags.Append(fieldDiags...)
+	if diags.HasError() {
+		return details, diags
 	}
-	if !model.Bcc.IsNull() && !model.Bcc.IsUnknown() {
-		diags.Append(model.Bcc.ElementsAs(ctx, &details.Bcc, false)...)
+	details.Bcc, fieldDiags = fwshared.StringSliceFromList(ctx, model.Bcc)
+	diags.Append(fieldDiags...)
+	if diags.HasError() {
+		return details, diags
 	}
-	if !model.CustomHeaders.IsNull() && !model.CustomHeaders.IsUnknown() {
-		diags.Append(model.CustomHeaders.ElementsAs(ctx, &details.CustomHeaders, false)...)
-	}
+	details.CustomHeaders, fieldDiags = fwshared.StringMapFromMap(ctx, model.CustomHeaders)
+	diags.Append(fieldDiags...)
 
 	return details, diags
 }
@@ -238,47 +244,23 @@ func (model *emailTemplateModel) updateFromEmailTemplate(ctx context.Context, de
 	model.ResolvedSubject = types.StringValue(details.ResolvedSubject)
 	model.ResolvedBody = types.StringValue(details.ResolvedBody)
 	model.CreatedOnMs = types.Int64Value(details.CreatedOnMs)
-	model.CreatedBy = optionalEmailTemplateStringValue(details.CreatedBy)
+	model.CreatedBy = fwshared.OptionalStringValue(details.CreatedBy)
 	model.UpdatedOnMs = types.Int64Value(details.UpdatedOnMs)
-	model.UpdatedBy = optionalEmailTemplateStringValue(details.UpdatedBy)
+	model.UpdatedBy = fwshared.OptionalStringValue(details.UpdatedBy)
 
-	model.To, diags = listStringValue(ctx, details.To)
+	model.To, diags = fwshared.StringListValue(ctx, details.To)
 	if diags.HasError() {
 		return diags
 	}
-	model.Cc, diags = listStringValue(ctx, details.Cc)
+	model.Cc, diags = fwshared.StringListValue(ctx, details.Cc)
 	if diags.HasError() {
 		return diags
 	}
-	model.Bcc, diags = listStringValue(ctx, details.Bcc)
+	model.Bcc, diags = fwshared.StringListValue(ctx, details.Bcc)
 	if diags.HasError() {
 		return diags
 	}
-	model.CustomHeaders, diags = mapStringValue(ctx, details.CustomHeaders)
+	model.CustomHeaders, diags = fwshared.StringMapValue(ctx, details.CustomHeaders)
 
 	return diags
-}
-
-func listStringValue(ctx context.Context, values []string) (types.List, diag.Diagnostics) {
-	if len(values) == 0 {
-		return types.ListNull(types.StringType), nil
-	}
-
-	return types.ListValueFrom(ctx, types.StringType, values)
-}
-
-func mapStringValue(ctx context.Context, values map[string]string) (types.Map, diag.Diagnostics) {
-	if len(values) == 0 {
-		return types.MapNull(types.StringType), nil
-	}
-
-	return types.MapValueFrom(ctx, types.StringType, values)
-}
-
-func optionalEmailTemplateStringValue(value string) types.String {
-	if value == "" {
-		return types.StringNull()
-	}
-
-	return types.StringValue(value)
 }

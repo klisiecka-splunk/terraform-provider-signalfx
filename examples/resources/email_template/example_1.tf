@@ -10,6 +10,6 @@ resource "signalfx_email_template" "detector_alerts" {
   cc = ["team@example.com"]
 
   custom_headers = {
-    X-SFX-Template = "detector"
+    X-Custom-Routing-Key = "detector-alerts"
   }
 }
